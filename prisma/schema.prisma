@@ -6,18 +6,30 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_DATABASE_URL")
 }
 
 model User {
   id        String   @id @default(cuid())
   email     String   @unique
   password  String
-  name      String?
-  role      String   @default("admin")
+  username  String   @unique
+  avatar    String?
+  bio       String?
+  status    String   @default("offline") // online, offline, away
+  role      String   @default("user")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  // Relations
+  sentMessages      ChatMessage[]
+  sentDirectMessages  DirectMessage[]  @relation("DMSender")
+  receivedDirectMessages DirectMessage[]  @relation("DMReceiver")
+  sentFriendships   Friendship[]  @relation("FriendshipSender")
+  receivedFriends   Friendship[]  @relation("FriendshipReceiver")
+  roomMemberships   RoomMember[]
 }
 
 model Project {
@@ -49,4 +61,86 @@ model Blog {
   published   Boolean  @default(false)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
+
+// URL Shortener
+model ShortUrl {
+  id          String   @id @default(cuid())
+  code        String   @unique  // Short code like "abc123"
+  originalUrl String
+  visits      Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// Chat App - Rooms
+model ChatRoom {
+  id          String       @id @default(cuid())
+  name        String
+  slug        String       @unique
+  description String?
+  inviteCode  String       @unique // For invite links
+  isPublic    Boolean      @default(true)
+  createdBy   String?
+  members     RoomMember[]
+  messages    ChatMessage[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+}
+
+model RoomMember {
+  id       String   @id @default(cuid())
+  userId   String
+  roomId   String
+  role     String   @default("member") // admin, member
+  joinedAt DateTime @default(now())
+
+  user User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  room ChatRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roomId])
+}
+
+model ChatMessage {
+  id        String   @id @default(cuid())
+  content   String
+  roomId    String
+  senderId  String
+  createdAt DateTime @default(now())
+
+  room   ChatRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  sender User     @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([roomId, createdAt])
+}
+
+// Friendship System
+model Friendship {
+  id          String   @id @default(cuid())
+  senderId    String
+  receiverId  String
+  status      String   @default("pending") // pending, accepted, rejected, blocked
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  sender   User @relation("FriendshipSender", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver User @relation("FriendshipReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@unique([senderId, receiverId])
+}
+
+// Direct Messages
+model DirectMessage {
+  id          String   @id @default(cuid())
+  content     String
+  senderId    String
+  receiverId  String
+  isRead      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  sender   User @relation("DMSender", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver User @relation("DMReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@index([senderId, receiverId, createdAt])
+  @@index([receiverId, isRead])
 }
