@@ -46,6 +46,7 @@ export async function GET(request: Request) {
       where: { senderId: userId },
       include: {
         receiver: { select: { id: true, username: true, avatar: true, status: true } },
+        sender: { select: { id: true, username: true, avatar: true, status: true } },
       },
       orderBy: { createdAt: "desc" },
     });
@@ -54,6 +55,7 @@ export async function GET(request: Request) {
       where: { receiverId: userId },
       include: {
         sender: { select: { id: true, username: true, avatar: true, status: true } },
+        receiver: { select: { id: true, username: true, avatar: true, status: true } },
       },
       orderBy: { createdAt: "desc" },
     });
@@ -81,7 +83,7 @@ export async function GET(request: Request) {
 
     const unreadMap = new Map(unreadCounts.map((u) => [u.senderId, u._count]));
 
-    const result = Array.from(conversations.values()).map((conv) => ({
+    const result = Array.from(conversations.values()).map((conv: { user: { id: string }; lastMessage: string; lastMessageTime: Date }) => ({
       ...conv,
       unreadCount: unreadMap.get(conv.user.id) || 0,
     }));
